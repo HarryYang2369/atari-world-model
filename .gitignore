@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.env/
+.env*/
+.venv/
+
+# IDEs/editors
+.idea/
+.vscode/
+*.swp
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# --- PYTHON CACHE / BUILD ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+build/
+dist/
+*.egg-info/
+
+# --- LARGE MODEL / DATA FILES ---
+*.pt
+*.pth
+*.npz
+*.npy
+*.h5
+*.ckpt
+
+# --- TORCH / OPENCV / NUMPY BINARIES ---
+*.dll
+*.so
+*.dylib
+*.lib
+
+# --- IDE / OS FILES ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- LOGS / TEMP ---
+*.log
+logs/
+tmp/
