@@ -19,11 +19,12 @@ cd $HOME/atari-world-model
 # Activate venv
 source venv/bin/activate
 
- python -u train.py \
-    -o pepg \
-    -n 8 \
-    -t 8 \
-    --num_episode 16 \
-    --eval_steps 5 \
-    --retrain 1 \
-    --cap_time 0
+python -u train.py \
+  -o pepg \
+  -n 8 \
+  -t 8 \
+  --num_episode 16 \
+  --eval_steps 10 \
+  --retrain 1 \
+  --cap_time 0
+

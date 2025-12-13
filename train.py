@@ -18,26 +18,26 @@ import sys
 import argparse
 import time
 
-from model import make_model, simulate  
-from es import CMAES, SimpleGA, OpenES, PEPG     #ES implementations
+from model import make_model, simulate
+from es import CMAES, SimpleGA, OpenES, PEPG  # ES implementations
 
 # -------------------------------------------------------------------
 # ES / training settings
 # -------------------------------------------------------------------
-num_episode = 16          # episodes per evaluation of a controller
-eval_steps = 5          # evaluate on full episodes every N optimization steps
-retrain_mode = True      # if eval gets worse, reset ES mean to previous best
+num_episode = 4          # episodes per evaluation of a controller
+eval_steps = 10            # evaluate on full episodes every N optimization steps
+retrain_mode = True       # if eval gets worse, reset ES mean to previous best
 cap_time_mode = False     # cap max_len ~ 2x avg episode length
 
-num_worker = 8           # MPI workers (not counting rank 0)
+num_worker = 8            # MPI workers (not counting rank 0)
 num_worker_trial = 8
 
 population = num_worker * num_worker_trial
 
-gamename = "breakout"    # used in log filenames
-optimizer = "cma"       # pepg, cma, ga, ses, openes
-antithetic = True        # antithetic sampling (where supported)
-batch_mode = "mean"      # aggregate over episodes: 'mean' or 'min'
+gamename = "breakout"     # used in log filenames
+optimizer = "cma"         # pepg, cma, ga, ses, openes
+antithetic = True         # antithetic sampling (where supported)
+batch_mode = "mean"       # aggregate over episodes: 'mean' or 'min'
 
 # seed for reproducibility
 seed_start = 1
@@ -45,6 +45,7 @@ seed_start = 1
 # name prefix for output files (will be set in initialize_settings)
 filebase = None
 
+# Build controller + world-model once per process
 model = make_model(load_model=True)
 num_params = model.param_count
 es = None
@@ -66,15 +67,13 @@ RESULT_PACKET_SIZE = None
 def initialize_settings(sigma_init=0.1, sigma_decay=0.9999):
     global population, filebase, model, num_params, es
     global PRECISION, SOLUTION_PACKET_SIZE, RESULT_PACKET_SIZE
-    global gamename  # MUST be declared before you use it!
+    global gamename
 
     population = num_worker * num_worker_trial
     os.makedirs("log", exist_ok=True)
     filebase = f"log/{gamename}.{optimizer}.{num_episode}.{population}"
 
-    # model and num_params are already initialized globally for each rank
     print("size of controller params:", num_params)
-
 
     # Choose optimizer
     if optimizer == "ses":
@@ -165,12 +164,12 @@ class Seeder:
 def encode_solution_packets(seeds, solutions, train_mode=1, max_len=-1):
     n = len(seeds)
     result = []
-    worker_num_local = 0
     for i in range(n):
         worker_num_local = int(i / num_worker_trial) + 1
         result.append([worker_num_local, i, seeds[i], train_mode, max_len])
         result.append(np.round(np.array(solutions[i]) * PRECISION, 0))
     result = np.concatenate(result).astype(np.int32)
+    # split into num_worker equal chunks, one per slave
     result = np.split(result, num_worker)
     return result
 
@@ -263,9 +262,7 @@ def send_packets_to_slaves(packet_list):
     world_size = comm.Get_size()
     assert len(packet_list) == world_size - 1
     for i in range(1, world_size):
-        packet = packet_list[i-1]
-        # debug print if you want:
-        # print("packet len:", len(packet), "expected:", SOLUTION_PACKET_SIZE)
+        packet = packet_list[i - 1]
         assert len(packet) == SOLUTION_PACKET_SIZE
         comm.Send(packet, dest=i)
 
@@ -392,7 +389,7 @@ def master():
 
         history.append(h)
 
-        # 🔹 Save "current" ES params → **this** is what model_breakout.load_model expects
+        # Save current ES-mean params (what model_breakout.py will load)
         with open(filename, "wt") as out:
             json.dump(
                 [np.array(es.current_param()).round(4).tolist()],
@@ -439,7 +436,7 @@ def master():
                     out,
                     sort_keys=True,
                     indent=0,
-                    separators=(",", ": "),
+                    separators=(",", ":"),
                 )
 
             curr_time = int(time.time()) - start_time
@@ -514,7 +511,7 @@ def mpi_fork(n):
         )
         cmd = [
             "mpiexec",
-            "--map-by", ":OVERSUBSCRIBE",   # <--- key addition
+            "--map-by", ":OVERSUBSCRIBE",
             "-n", str(n),
             sys.executable,
             "-u",
@@ -523,7 +520,6 @@ def mpi_fork(n):
         subprocess.check_call(cmd, env=env)
         return "parent"
     else:
-        ...
         return "child"
 
 
@@ -555,11 +551,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("-n", "--num_worker", type=int, default=8)
     parser.add_argument(
-    "-t",
-    "--num_worker_trial",
-    type=int,
-    help="trials per worker",
-    default=8,              # 8 trials per worker → population 64
+        "-t",
+        "--num_worker_trial",
+        type=int,
+        help="trials per worker",
+        default=8,
     )
     parser.add_argument(
         "--antithetic",
